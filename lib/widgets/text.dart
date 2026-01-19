@@ -1,6 +1,6 @@
-import 'package:flutter/widgets.dart' show Text, TextOverflow, TextSpan, InlineSpan;
+import 'package:flutter/widgets.dart' show Text, TextOverflow, TextSpan, InlineSpan, WidgetSpan;
 
-import 'package:pdf/widgets.dart' as pw show Text, TextOverflow, TextSpan, RichText;
+import 'package:pdf/widgets.dart' as pw show Text, TextOverflow, TextSpan, RichText, WidgetSpan, Widget;
 
 import '../export_instance.dart';
 import '/args/text_style.dart';
@@ -46,9 +46,23 @@ extension TextSpanConverter on TextSpan {
       text: text,
       style: await style?.toPdfTextStyle(instance.delegate.fontData),
       children: await Future.wait(children?.map(
-        (InlineSpan e) async => await (e as TextSpan).toPdfWidget(instance)
+        (InlineSpan e) async {
+          if (e is WidgetSpan) {
+            return await e.toPdfWidget(instance);
+          }
+          return await (e as TextSpan).toPdfWidget(instance);
+        }
       ) ?? []),
   );
+}
+
+/// Extension on [WidgetSpan] to convert it to the pdf equivalent [pw.WidgetSpan].
+extension WidgetSpanConverter on WidgetSpan {
+  /// Converts the [WidgetSpan] to a [pw.WidgetSpan].
+  Future<pw.WidgetSpan> toPdfWidget(ExportInstance instance) async {
+    final pw.Widget pdfChild = await instance.exportFunc(child);
+    return pw.WidgetSpan(child: pdfChild);
+  }
 }
 
 /// Extension on [TextOverflow] to convert it to the pdf equivalent [pw.TextOverflow].
