@@ -19,7 +19,7 @@ extension ContainerConverter on Container {
         foregroundDecoration: await (foregroundDecoration as BoxDecoration?)
             ?.toPdfBoxDecoration(),
         margin: margin?.toPdfEdgeInsets(),
-        padding: padding?.toPdfEdgeInsets(),
+        padding: null,
         transform: transform,
         child: child,
       );

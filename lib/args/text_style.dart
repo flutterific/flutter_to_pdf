@@ -21,6 +21,8 @@ import 'package:pdf/widgets.dart' as pw
 import '../options/font_data.dart';
 import 'color.dart';
 
+final Map<String, pw.Font> _fontCache = {};
+
 extension TextStyleConverter on TextStyle {
   Future<pw.TextStyle> toPdfTextStyle(FontData fontData) async {
     pw.Font? font = fontFamily != null 
@@ -78,11 +80,16 @@ extension TextStyleConverter on TextStyle {
 
   Future<pw.Font> resolveCustomFont(
       String ttfFontPath, AssetBundle assetBundle) async {
+    if (_fontCache.containsKey(ttfFontPath)) {
+      return _fontCache[ttfFontPath]!;
+    }
     final bytes = await assetBundle.load(ttfFontPath);
     if (bytes.buffer.asInt8List().isEmpty) {
       throw Exception('Font file $ttfFontPath is empty');
     }
-    return pw.Font.ttf(bytes);
+    final font = pw.Font.ttf(bytes);
+    _fontCache[ttfFontPath] = font;
+    return font;
   }
 }
 
