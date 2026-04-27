@@ -37,6 +37,10 @@ class ExportDelegate {
     return frame;
   }
 
+  /// Clears registered frames. Call from the host widget's [State.dispose] to
+  /// release retained [BuildContext] / [Widget] references.
+  void dispose() => _registeredFrames.clear();
+
   /// Copies the [ExportDelegate] with the given [options].
   ExportDelegate copyWith({ExportOptions? options}) => ExportDelegate(
         options: options ?? this.options,
@@ -99,16 +103,20 @@ class ExportDelegate {
       pixelRatio = MediaQuery.of(context).devicePixelRatio;
     }
 
-    Element? element = layoutWidget(widget, layoutSize, pixelRatio);
+    final layout = layoutWidget(widget, layoutSize, pixelRatio);
 
-    final List<pw.Widget> children =
-        await exportInstance.matchWidget(element!, context);
+    try {
+      final List<pw.Widget> children =
+          await exportInstance.matchWidget(layout.element!, context);
 
-    if (children.isEmpty) {
-      throw Exception('No children found');
+      if (children.isEmpty) {
+        throw Exception('No children found');
+      }
+
+      return children.first;
+    } finally {
+      layout.dispose();
     }
-
-    return children.first;
   }
 
   /// Exports the given [widget] to a [pw.Page].

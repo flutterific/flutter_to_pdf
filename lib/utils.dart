@@ -60,8 +60,14 @@ Element? findFirstDescendantElement<T>(Element element) {
   return _findByElement(element, (T _) => true);
 }
 
-/// Lays out the provided [widget] in a view of [size] and returns it as [Element].
-Element? layoutWidget(Widget widget, Size size, double? pixelRatio) {
+/// Result of [layoutWidget]. Caller MUST invoke [dispose] after consuming
+/// [element] to unmount the orphan element tree and release retained
+/// GlobalKeys / RenderObjects.
+typedef LayoutResult = ({Element? element, VoidCallback dispose});
+
+/// Lays out the provided [widget] in a view of [size] and returns it as
+/// [Element] together with a [dispose] callback that unmounts the tree.
+LayoutResult layoutWidget(Widget widget, Size size, double? pixelRatio) {
   RenderRepaintBoundary repaintBoundary = RenderRepaintBoundary();
 
   RenderView renderView = RenderView(
@@ -95,7 +101,8 @@ Element? layoutWidget(Widget widget, Size size, double? pixelRatio) {
   );
 
   BuildOwner buildOwner = BuildOwner(focusManager: FocusManager());
-  RenderObjectToWidgetElement rootElement = RenderObjectToWidgetAdapter(
+  RenderObjectToWidgetElement<RenderBox> rootElement =
+      RenderObjectToWidgetAdapter<RenderBox>(
     container: repaintBoundary,
     child: widget,
   ).attachToRenderTree(buildOwner);
@@ -112,5 +119,23 @@ Element? layoutWidget(Widget widget, Size size, double? pixelRatio) {
 
   Element? exportFrameElement = extractExportFrame(element!);
 
-  return exportFrameElement;
+  bool disposed = false;
+  void dispose() {
+    if (disposed) return;
+    disposed = true;
+    try {
+      RenderObjectToWidgetAdapter<RenderBox>(
+        container: repaintBoundary,
+        child: const SizedBox.shrink(),
+      ).attachToRenderTree(buildOwner, rootElement);
+      buildOwner.buildScope(rootElement);
+      buildOwner.finalizeTree();
+    } catch (e, st) {
+      debugPrint('flutter_to_pdf layoutWidget dispose error: $e\n$st');
+    }
+    renderView.child = null;
+    pipelineOwner.rootNode = null;
+  }
+
+  return (element: exportFrameElement, dispose: dispose);
 }
