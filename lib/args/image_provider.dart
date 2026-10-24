@@ -20,8 +20,14 @@ extension ImageProviderConverter on ImageProvider {
 
   /// Resolves the [ImageProvider]´s bytes
   /// and returns the bytes together with their [Size].
+  ///
+  /// Defaults to straight alpha because [pw.RawImage] splits the alpha into
+  /// a soft mask and keeps the color channels as they are. Premultiplied
+  /// [ImageByteFormat.rawRgba] bytes get their alpha applied a second time
+  /// when the viewer composites the mask, so every semi-transparent pixel
+  /// (a cut-out headshot, an icon's antialiased edge) comes out too dark.
   Future<MapEntry<Uint8List?, Size>> getBytes({
-    ImageByteFormat format = ImageByteFormat.rawRgba,
+    ImageByteFormat format = ImageByteFormat.rawStraightRgba,
   }) async {
     Size? size;
     final imageStream = resolve(ImageConfiguration.empty);
