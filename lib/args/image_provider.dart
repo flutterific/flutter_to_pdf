@@ -26,31 +26,49 @@ extension ImageProviderConverter on ImageProvider {
   /// [ImageByteFormat.rawRgba] bytes get their alpha applied a second time
   /// when the viewer composites the mask, so every semi-transparent pixel
   /// (a cut-out headshot, an icon's antialiased edge) comes out too dark.
+  ///
+  /// Load and decode errors propagate to the caller. [timeout] also bounds
+  /// providers that never deliver an image or an error, so export can finish.
   Future<MapEntry<Uint8List?, Size>> getBytes({
     ImageByteFormat format = ImageByteFormat.rawStraightRgba,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
-    Size? size;
     final imageStream = resolve(ImageConfiguration.empty);
-    final Completer<Uint8List?> completer = Completer<Uint8List?>();
-    final ImageStreamListener listener = ImageStreamListener(
-      (imageInfo, synchronousCall) async {
-        size = Size(
+    final completer = Completer<MapEntry<Uint8List?, Size>>();
+    void completeError(Object error, StackTrace? stack) {
+      if (!completer.isCompleted) {
+        completer.completeError(error, stack);
+      }
+    }
+
+    final ImageStreamListener listener = ImageStreamListener((
+      imageInfo,
+      synchronousCall,
+    ) async {
+      try {
+        final size = Size(
           imageInfo.image.width.toDouble(),
           imageInfo.image.height.toDouble(),
         );
-
         final bytes = await imageInfo.image.toByteData(format: format);
-
-        if (!completer.isCompleted) {
-          completer.complete(bytes?.buffer.asUint8List());
+        if (bytes == null) {
+          throw StateError('Image returned no pixel data during PDF export.');
         }
-      },
-    );
+        if (!completer.isCompleted) {
+          completer.complete(MapEntry(bytes.buffer.asUint8List(), size));
+        }
+      } catch (error, stack) {
+        completeError(error, stack);
+      } finally {
+        imageInfo.dispose();
+      }
+    }, onError: completeError);
 
-    imageStream.addListener(listener);
-    final imageBytes = await completer.future;
-    imageStream.removeListener(listener);
-
-    return MapEntry(imageBytes, size!);
+    try {
+      imageStream.addListener(listener);
+      return await completer.future.timeout(timeout);
+    } finally {
+      imageStream.removeListener(listener);
+    }
   }
 }
